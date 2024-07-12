@@ -39,7 +39,7 @@ positions, and most other versions have a not-great quick-move order, where card
 you move it manually, or move another card. It also treats free cells and foundations each collectively, so for ex. if you try to quick-move
 a card in a free cell, it won't just move to another free cell, since that's effectively like not moving)
 
-This version decidedly does not have auto moving cards (auto moving is ex. if you have an ace showing it auto moves to the cell), and allows you 
+This version decidedly does not have auto moving cards (auto moving is ex. if you have an ace showing it auto moves to a foundation), and allows you 
 to move cards out of the foundations, because I like having the potential strategy of storing cards in the foundation, and then moving them out, 
 even if you almost never have an opportunity to do that.
 
