@@ -28,7 +28,7 @@ It took me a couple tries to find something that worked, and it does work, but y
 for an actual serious project. (ex. there's a few cases of ^[dynamic]^Card and index:int pairs that could be a struct)
 
 There's a ton of comments in the source code. This was more just a way of note-taking/working through problems, than it is
-for actually explaining the code, although admittedly it could also be indicative of the code being too tangled on it's own. I might go through after 
+for actually explaining the code, although admittedly it could also be indicative of the code being too tangled on its own. I might go through after 
 and make a cleaned up version with fewer/revised comments that's easier to navigate for other people. (I should note 
 though, I did the same over-commenting for the C++ version, and it saved me from making a few mistakes I had forgotten about.)
 
