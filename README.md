@@ -2,6 +2,11 @@ A FreeCell game written in Odin, based on a C++ version I made last year.
 This project is currently 90% done, the last major thing I want to add is an undo/redo system, and
 then do some minor bug fixes. 
 
+
+___________________________________________________________________________________________________
+
+
+
 Dev Notes:
 I had an unfinished C++ FreeCell variant that I made last year that I've wanted to finish. Last month I figured I should
 go finish it. I hadn't done much C++ since, and I had just read this article about game developement using Odin 
