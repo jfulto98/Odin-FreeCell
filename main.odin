@@ -110,7 +110,6 @@ main :: proc() {
 
 	initGui()
 	
-    // initHistory()//maybe put in initGame()
     initGame()
     initPostProcessor()
 

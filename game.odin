@@ -58,9 +58,11 @@ Card :: struct{
 //you just create all the cards in the deck, shuffle them, then every other array just points to them.
 deck : [NUM_CARDS_IN_DECK]Card
 // deck := make([dynamic]Card, NUM_CARDS_IN_DECK)
+
 columns : [8][dynamic]^Card
 foundations : [4][dynamic]^Card
 freecells : [4][dynamic]^Card
+
 
 //added in card array types after adding quick moves, since you need to know what type of
 //array is getting drawn. (mentioned this in some other comments but this feels like a shortcomming
@@ -235,7 +237,25 @@ quickMoveCompare :: proc(card_array : ^[dynamic]^Card, type : CARD_ARRAY_TYPE)->
 }
 
 initGame :: proc(){
+
+    initHistory()
+
     gameState = .GAME_NEW
+
+    //The real max you should be able to have in freecell is 20 (8 cards in a tableau, topmost is king, build from king to ace = 8 + 12 = 20,
+    //doing the 52 to be thorough    
+    for &cardArray in columns{
+        cardArray = make([dynamic]^Card, 52)
+    }
+
+    for &cardArray in foundations{
+        cardArray = make([dynamic]^Card, 52)
+    }
+
+    for &cardArray in freecells{
+        cardArray = make([dynamic]^Card, 52)
+    }
+
     initDeck()
 }
 
@@ -266,11 +286,11 @@ updateGame :: proc(dt: f32){
         
         if keyboardState[SDL.SCANCODE_LSHIFT] == 1 || keyboardState[SDL.SCANCODE_RSHIFT] == 1{
             fmt.println("ctrl + shift + z pressed, redoing!")
-            // redo()
+            redo()
 
         }else{
             fmt.println("ctrl + z pressed, undoing!")
-            // undo()
+            undo()
         }
 
 
@@ -287,6 +307,8 @@ updateGame :: proc(dt: f32){
 
         pp_clearFramebuffer = true
         clearCards()
+        resetHistory()
+
         // shuffleDeck()
         quickMoveState = .NOT_DOING
 
@@ -865,6 +887,13 @@ getHandCardPosition :: proc(i:int) -> (x, y: int){
 
 moveCards :: proc(from, to : ^[dynamic]^Card, fromStartingIndex:int){
     
+
+
+    //FIRST, backup the existing card arrays. (for undo history)
+    savePoint(from)
+    savePoint(to)
+
+    //then do the actual move stuff
     for &card in  handCardArray[handCardArrayIndex:]{
         card.visJustStartedMoveSetVisuals = true
     }
@@ -1070,9 +1099,14 @@ clearCards :: proc(){
 
 deinitGame :: proc(){
     // delete(deck)
+
+
     for col in columns do delete(col)
     for foundation in foundations do delete(foundation)
+    for freecell in freecells do delete(freecell)
+
     delete(visualCardArray)
+    deinitHistory()
 }
 
 drawCardsTest :: proc(){

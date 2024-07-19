@@ -4,6 +4,157 @@ import "core:fmt"
 import "core:container/queue"
 
 
+
+HistoryItem :: struct{
+    // cardArrayData : [dynamic]^Card,
+    cardArrayData : [NUM_CARDS_IN_DECK]^Card,
+    cardArrayPointer : ^[dynamic]^Card
+}
+
+History :: struct{
+    undoQueue : queue.Queue(HistoryItem),
+    redoQueue : queue.Queue(HistoryItem)
+}
+
+history : History
+
+HISTORY_QUEUE_LEN :: 10
+
+initHistory :: proc(){
+
+    queue.reserve(&history.undoQueue, HISTORY_QUEUE_LEN) 
+    queue.reserve(&history.redoQueue, HISTORY_QUEUE_LEN) 
+
+}
+
+deinitHistory :: proc(){
+
+    queue.destroy(&history.undoQueue) 
+    queue.destroy(&history.redoQueue) 
+}
+
+resetHistory :: proc(){
+    fmt.println("resetting history!!")
+    queue.clear(&history.undoQueue) 
+    queue.clear(&history.redoQueue) 
+
+}
+
+
+savePoint :: proc(cardArrayPointer : ^[dynamic]^Card){
+    //push, and then clear the redo queue
+
+    fmt.println("in savePoint proc")
+
+    pushState(cardArrayPointer, &history.undoQueue)
+
+    queue.clear(&history.redoQueue)
+
+}
+
+pushState :: proc(cardArrayPointer : ^[dynamic]^Card, q : ^queue.Queue(HistoryItem)){
+
+    i := 0
+    item := HistoryItem{}
+    item.cardArrayPointer = cardArrayPointer
+
+    for cardPointer in cardArrayPointer{
+        if cardPointer == nil || i > len(item.cardArrayData){
+            break;
+        }
+        fmt.println("card pointer in save:", cardPointer)
+        item.cardArrayData[i] = cardPointer
+        i += 1
+    }   
+
+    queue.push_back(q, item)    
+
+}
+
+undo :: proc(){
+    
+    // fmt.println("in undo proc")
+
+    //hack-> right now do it twice, since there are 2 saves for each card move,
+    //and the only thing being saved is card moves. In a more complex game, you'd
+    //need to have some way of combining an arbitrary amount of save points together.
+    for i in 0..<2{
+        if queue.len(history.undoQueue) <= 0{
+            fmt.println("undoQueue is empty!!")
+            break
+        }else{
+
+            undoItem := queue.pop_back(&history.undoQueue)
+            
+
+            fmt.println("undo item:", undoItem)
+
+            //first, push current state onto redo queue
+            pushState(undoItem.cardArrayPointer, &history.redoQueue)
+
+            //then undo
+            clear(undoItem.cardArrayPointer)
+
+            for i in 0..<len(undoItem.cardArrayData){
+                fmt.println("appending from undo item:", undoItem.cardArrayData[i])
+                
+                //dom't want to append nil values (currently assuming any nil values are just empty spaces at the end of the len-52 array)
+                //could include the number of actual cards in HistoryItem to be thorough, but this is enough
+                //currently need this since nil is interpretted as the empty card cell in the drawCardArray proc in game.odin
+                //!!!was getting an error where I guess I was drawing a bunch of empty cells ontop of the card arrays that were undone.
+                if undoItem.cardArrayData[i] == nil do break
+
+                append(undoItem.cardArrayPointer, undoItem.cardArrayData[i])
+            }
+
+            // undoItem.cardArrayPointer = undoItem.cardArrayData
+        }
+    }
+}
+
+redo :: proc(){
+    
+    fmt.println("in redo proc")
+
+    for i in 0..<2{
+        if queue.len(history.redoQueue) <= 0{
+            fmt.println("redoQueue is empty!!")
+            break
+        }else{
+
+            redoItem := queue.pop_back(&history.redoQueue)
+            
+            //first, push current state onto undo queue
+            pushState(redoItem.cardArrayPointer, &history.undoQueue)
+
+            //then redo
+            clear(redoItem.cardArrayPointer)
+
+            for i in 0..<len(redoItem.cardArrayData){
+                
+                if redoItem.cardArrayData[i] == nil do break
+
+                append(redoItem.cardArrayPointer, redoItem.cardArrayData[i])
+            }
+
+        }
+    }
+}
+
+
+
+
+
+
+
+
+//Attempt at doing the command pattern without OOP
+//I think this could be done (didn't get it working), but it would be annoying and I wanted to try doing the stateful method.
+//-> the one benefit command pattern provides for solitaire is that you can actually see the cards moving back.
+//with the above approach cards instantly move when you undo/redo.
+//In most other games/places where you'd want an undo system, this isn't desirable/doesn't make sense (eg in a sokoban, 
+//you don't really want to walk in the opposite direction is you undo a move), but in solitaire you might want that.
+
 // Undo_Item :: 
 
 // CommandType :: enum{
@@ -92,8 +243,6 @@ import "core:container/queue"
 
 // clearHistory :: proc(){
 
-
-    
     
 // }
 
