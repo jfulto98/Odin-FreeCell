@@ -7,7 +7,7 @@ A FreeCell game written in Odin, based on a C++ version I made last year.
 
 Features:
 <ul>
-  <li>Visual card position interpolation</li>
+  <li>Moving cards</li>
   <li>Double click to quick move</li>
   <li>Undo/Redo system</li>
   <li>Autocomplete</li>
