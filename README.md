@@ -6,13 +6,14 @@ A FreeCell game written in Odin, based on a C++ version I made last year.
 ![Alt text](/textures/screen_shots/2.png?raw=true "Screen shot of winning animation")
 
 Features:
-
--Visual card position interpolation
-*Double click to quick move
-*Undo/Redo system
-*Autocomplete
-*Cascading cards winning animation
-+Sound Effects
+<ul>
+  <li>Visual card position interpolation</li>
+  <li>Double click to quick move</li>
+  <li>Undo/Redo system</li>
+  <li>Autocomplete</li>
+  <li>Cascading cards winning animation</li>
+  <li>Sound Effects</li>
+</ul>
 
 Sources:
 
