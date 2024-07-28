@@ -70,6 +70,13 @@ main :: proc() {
 		return
 	}
 
+
+
+	//setup sdl_image, this is just for setting the window icon, because
+	//you SetWindowIcon requires and SDL surface. 
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!! like mp3s, you need to include and additional .dll so you can 
+	//actually load .pngs with .Load -> libpng16-16.dll ->  this is in the vendor folder in the 
+	//odin install location
 	sdl_image.Init(sdl_image.INIT_PNG)
 	icon := sdl_image.Load("textures/icon.png");
 	SDL.SetWindowIcon(window, icon);

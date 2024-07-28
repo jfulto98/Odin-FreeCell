@@ -44,6 +44,12 @@ loadResources :: proc(){
     }
 
     for file in file_infos{
+        //!!! I'm just wrapping up the project, I added a screenshot folder to the textures folder
+        //to put the screenshots for github. That messes this up, causes the program to crash, 
+        //will have to rework later if adding subfolders to textures folder (for now
+        //I'm just putting the screenshots in with the other textures.)
+
+
         loadTexture(strings.clone(file.name[:strings.index(file.name,".")]), file.fullpath)
         /*
         //!!!should look into this, but without cloning, there were issues where the textures weren't 

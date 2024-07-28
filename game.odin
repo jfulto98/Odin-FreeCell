@@ -884,6 +884,7 @@ renderGame :: proc(){
             "CTRL+Z - Undo, CTRL+SHIFT+Z - Redo",
             "A - Autocomplete (when applicable)",
             "M - Mute/Unmute",
+            "W - Win (to demo win animation)",
             "",
             "See README for more info/credits/sources",
             "THANKS FOR PLAYING"
@@ -1748,8 +1749,11 @@ debugAutoWin ::proc (){
     //set gamestate to autocomplete, otherwise the autocomplete popup will show up as the cards are
     //all moving to the foundations (because there are no cards in the tableaus, and debugDealWin 
     //sets the state to .PLAYING, so autocomplete checks are done)
-    gameState = .GAME_AUTOCOMPLETING
-
+    if gameState == .GAME_PLAYING{
+        //added gamestate check because you can't autocomplete if you're dealing, so 
+        //if you call this while dealing, everything stops and you have to start a new game)
+        gameState = .GAME_AUTOCOMPLETING
+    }
 }
 
 playRandomCardPlaceSound :: proc(){
