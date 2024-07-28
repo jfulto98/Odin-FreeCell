@@ -9,6 +9,7 @@ import "core:strings"
 
 import SDL "vendor:sdl2"
 import mix "vendor:sdl2/mixer"
+import sdl_image "vendor:sdl2/image"
 import gl "vendor:OpenGL"
 import glm "core:math/linalg/glsl"
 
@@ -63,11 +64,15 @@ main :: proc() {
 
     //SDL setup
 
-	window := SDL.CreateWindow("Free Cell", SDL.WINDOWPOS_UNDEFINED, SDL.WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, {.OPENGL})
+	window := SDL.CreateWindow("Freecell", SDL.WINDOWPOS_UNDEFINED, SDL.WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, {.OPENGL})
 	if window == nil {
 		fmt.eprintln("Failed to create window")
 		return
 	}
+
+	sdl_image.Init(sdl_image.INIT_PNG)
+	icon := sdl_image.Load("textures/icon.png");
+	SDL.SetWindowIcon(window, icon);
 
 	//AUDIO setup: based on https://lazyfoo.net/SDL_tutorials/lesson11/index.php
 	if SDL.Init(SDL.INIT_AUDIO) < 0{

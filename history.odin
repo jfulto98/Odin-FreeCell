@@ -18,7 +18,14 @@ History :: struct{
 
 history : History
 
-HISTORY_QUEUE_LEN :: 10
+HISTORY_QUEUE_LEN :: 2048
+//note: even though container/queue is a double ended queue/ring buffer, it's dynamically resizable.
+//the behaviour I was looking for would be to just overwrite existing values if full (ie, if try to add when len= cap,
+//you just overwrite index 0, then 1, then 2, etc -> because it's circular, popping would go from 2 to 1, 0, then max, max-1, tec
+//however, it doesn't look like there's a way to do this with Odin's builtin queue (it just auto resizes). 
+//it looks like it will be fine though, since I'm clearing/keeping track of everything anyways. Just would
+//feel nicer to me if I knew for sure you would just overwrite values. (I have the len set to 2048 right now though,
+//I doubt you will every come close to that).
 
 initHistory :: proc(){
 
@@ -44,9 +51,12 @@ resetHistory :: proc(){
 savePoint :: proc(cardArrayPointer : ^[dynamic]^Card){
     //push, and then clear the redo queue
 
-    fmt.println("in savePoint proc")
+    // fmt.println("in savePoint proc")
 
     pushState(cardArrayPointer, &history.undoQueue)
+
+    // fmt.println("undo queue len:", queue.len(history.undoQueue))
+
 
     queue.clear(&history.redoQueue)
 
@@ -62,7 +72,7 @@ pushState :: proc(cardArrayPointer : ^[dynamic]^Card, q : ^queue.Queue(HistoryIt
         if cardPointer == nil || i > len(item.cardArrayData){
             break;
         }
-        fmt.println("card pointer in save:", cardPointer)
+        // fmt.println("card pointer in save:", cardPointer)
         item.cardArrayData[i] = cardPointer
         i += 1
     }   
@@ -71,8 +81,11 @@ pushState :: proc(cardArrayPointer : ^[dynamic]^Card, q : ^queue.Queue(HistoryIt
 
 }
 
-undo :: proc(){
+undo :: proc()->bool{
     
+    //added return bools for undo/redo to be used by caller (game.odin) for visuals
+    //(Currently want to desaturate colors when undoing, and saturate for redoing)
+
     // fmt.println("in undo proc")
 
     //hack-> right now do it twice, since there are 2 saves for each card move,
@@ -81,7 +94,7 @@ undo :: proc(){
     for i in 0..<2{
         if queue.len(history.undoQueue) <= 0{
             fmt.println("undoQueue is empty!!")
-            break
+            return false
         }else{
 
             undoItem := queue.pop_back(&history.undoQueue)
@@ -110,16 +123,18 @@ undo :: proc(){
             // undoItem.cardArrayPointer = undoItem.cardArrayData
         }
     }
+
+    return true
 }
 
-redo :: proc(){
+redo :: proc()->bool{
     
     fmt.println("in redo proc")
 
     for i in 0..<2{
         if queue.len(history.redoQueue) <= 0{
             fmt.println("redoQueue is empty!!")
-            break
+            return false
         }else{
 
             redoItem := queue.pop_back(&history.redoQueue)
@@ -136,9 +151,9 @@ redo :: proc(){
 
                 append(redoItem.cardArrayPointer, redoItem.cardArrayData[i])
             }
-
         }
     }
+    return true
 }
 
 

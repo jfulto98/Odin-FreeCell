@@ -145,11 +145,36 @@ loadTextRenderer :: proc(path : string, fontSize : u32){
     
 }
 
+
+
+
+getStringTextRendererWidth :: proc(text : string, scale: f32) -> f32{
+
+    //this is mainly for centering text horizontally. Don't know if there's a builtin function
+    //in freetype for this, or if there's a more efficient way to do this (you will loop over your
+    //string x2 if you call this, then renderText()), but it seems like this is what everyone recommends you do)
+
+    w : f32 = 0
+
+    for c in text{
+        if !(c in characters){
+            fmt.eprintln("in getStringLen, could not find character", c, "in loaded characters")
+        }else{
+            ch := characters[c]
+            w += f32(ch.advance >> 6)  * scale
+        }
+    }    
+
+    return w
+}
+
 renderText :: proc(text : string, x, y, scale : f32, color : glm.vec3, sin_wave := false){
     //sin_wave is temp, can make this whole proc more robust later if needed.
 
     x := x
     //going to be updating x in the loop as you draw each character
+
+    
 
     useShader("text")
 

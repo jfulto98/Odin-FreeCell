@@ -24,7 +24,7 @@ handleInput :: proc(){
     
 	SDL.PumpEvents();
     //apparently you don't NEED to call pump events if you call SDL.PollEvent, 
-    //since it implicitly calls PumpEvents
+    //since SDL.PollEVent implicitly calls PumpEvents
 
     //INPUT event polling
     event: SDL.Event
@@ -56,8 +56,9 @@ handleInput :: proc(){
 
             case .KEYDOWN:
                 #partial switch event.key.keysym.sym {
-                    case .ESCAPE:
+                    case .Q:
                         quit()
+
                 }
 
             case .QUIT:

@@ -12,6 +12,8 @@ pp_vao : u32
 
 pp_clearFramebuffer := true
 
+pp_saturation_factor : f32
+pp_desaturate : i32
 
 
 initPostProcessor :: proc(){
@@ -135,6 +137,10 @@ renderPostProcessor :: proc(dt:f32){
     
     
     useShader("pp")
+
+    setUFloat("sFactor", pp_saturation_factor)
+    setUInt("desaturate", pp_desaturate)
+
 
     gl.ActiveTexture(gl.TEXTURE0)
     gl.BindTexture(gl.TEXTURE_2D, pp_texture)

@@ -19,7 +19,6 @@ chunk_map := make(map[string]^mix.Chunk)
 
 cardTextures : [4][13]u32
 
-SUITS :: enum {DIAMONDS, CLUBS, HEARTS, SPADES}
 
 loadResources :: proc(){
 
@@ -73,72 +72,83 @@ loadResources :: proc(){
     //maybe look into this
 
     //card textures
-    cardTextures[SUITS.DIAMONDS][0] = getTexture("ace_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][1] = getTexture("2_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][2] = getTexture("3_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][3] = getTexture("4_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][4] = getTexture("5_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][5] = getTexture("6_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][6] = getTexture("7_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][7] = getTexture("8_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][8] = getTexture("9_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][9] = getTexture("10_of_diamonds")
-    cardTextures[SUITS.DIAMONDS][10] = getTexture("jack_of_diamonds2")
-    cardTextures[SUITS.DIAMONDS][11] = getTexture("queen_of_diamonds2")
-    cardTextures[SUITS.DIAMONDS][12] = getTexture("king_of_diamonds2")
+    cardTextures[SUIT.DIAMONDS][0] = getTexture("ace_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][1] = getTexture("2_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][2] = getTexture("3_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][3] = getTexture("4_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][4] = getTexture("5_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][5] = getTexture("6_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][6] = getTexture("7_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][7] = getTexture("8_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][8] = getTexture("9_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][9] = getTexture("10_of_diamonds")
+    cardTextures[SUIT.DIAMONDS][10] = getTexture("jack_of_diamonds2")
+    cardTextures[SUIT.DIAMONDS][11] = getTexture("queen_of_diamonds2")
+    cardTextures[SUIT.DIAMONDS][12] = getTexture("king_of_diamonds2")
 
-    cardTextures[SUITS.CLUBS][0]  = getTexture("ace_of_clubs")
-    cardTextures[SUITS.CLUBS][1]  = getTexture("2_of_clubs")
-    cardTextures[SUITS.CLUBS][2]  = getTexture("3_of_clubs")
-    cardTextures[SUITS.CLUBS][3]  = getTexture("4_of_clubs")
-    cardTextures[SUITS.CLUBS][4]  = getTexture("5_of_clubs")
-    cardTextures[SUITS.CLUBS][5]  = getTexture("6_of_clubs")
-    cardTextures[SUITS.CLUBS][6]  = getTexture("7_of_clubs")
-    cardTextures[SUITS.CLUBS][7]  = getTexture("8_of_clubs")
-    cardTextures[SUITS.CLUBS][8]  = getTexture("9_of_clubs")
-    cardTextures[SUITS.CLUBS][9]  = getTexture("10_of_clubs")
-    cardTextures[SUITS.CLUBS][10] = getTexture("jack_of_clubs2")
-    cardTextures[SUITS.CLUBS][11] = getTexture("queen_of_clubs2")
-    cardTextures[SUITS.CLUBS][12] = getTexture("king_of_clubs2")
+    cardTextures[SUIT.CLUBS][0]  = getTexture("ace_of_clubs")
+    cardTextures[SUIT.CLUBS][1]  = getTexture("2_of_clubs")
+    cardTextures[SUIT.CLUBS][2]  = getTexture("3_of_clubs")
+    cardTextures[SUIT.CLUBS][3]  = getTexture("4_of_clubs")
+    cardTextures[SUIT.CLUBS][4]  = getTexture("5_of_clubs")
+    cardTextures[SUIT.CLUBS][5]  = getTexture("6_of_clubs")
+    cardTextures[SUIT.CLUBS][6]  = getTexture("7_of_clubs")
+    cardTextures[SUIT.CLUBS][7]  = getTexture("8_of_clubs")
+    cardTextures[SUIT.CLUBS][8]  = getTexture("9_of_clubs")
+    cardTextures[SUIT.CLUBS][9]  = getTexture("10_of_clubs")
+    cardTextures[SUIT.CLUBS][10] = getTexture("jack_of_clubs2")
+    cardTextures[SUIT.CLUBS][11] = getTexture("queen_of_clubs2")
+    cardTextures[SUIT.CLUBS][12] = getTexture("king_of_clubs2")
 
-    cardTextures[SUITS.HEARTS][0] = getTexture("ace_of_hearts")
-    cardTextures[SUITS.HEARTS][1] = getTexture("2_of_hearts")
-    cardTextures[SUITS.HEARTS][2] = getTexture("3_of_hearts")
-    cardTextures[SUITS.HEARTS][3] = getTexture("4_of_hearts")
-    cardTextures[SUITS.HEARTS][4] = getTexture("5_of_hearts")
-    cardTextures[SUITS.HEARTS][5] = getTexture("6_of_hearts")
-    cardTextures[SUITS.HEARTS][6] = getTexture("7_of_hearts")
-    cardTextures[SUITS.HEARTS][7] = getTexture("8_of_hearts")
-    cardTextures[SUITS.HEARTS][8] = getTexture("9_of_hearts")
-    cardTextures[SUITS.HEARTS][9] = getTexture("10_of_hearts")
-    cardTextures[SUITS.HEARTS][10] = getTexture("jack_of_hearts2")
-    cardTextures[SUITS.HEARTS][11] = getTexture("queen_of_hearts2")
-    cardTextures[SUITS.HEARTS][12] = getTexture("king_of_hearts2")
+    cardTextures[SUIT.HEARTS][0] = getTexture("ace_of_hearts")
+    cardTextures[SUIT.HEARTS][1] = getTexture("2_of_hearts")
+    cardTextures[SUIT.HEARTS][2] = getTexture("3_of_hearts")
+    cardTextures[SUIT.HEARTS][3] = getTexture("4_of_hearts")
+    cardTextures[SUIT.HEARTS][4] = getTexture("5_of_hearts")
+    cardTextures[SUIT.HEARTS][5] = getTexture("6_of_hearts")
+    cardTextures[SUIT.HEARTS][6] = getTexture("7_of_hearts")
+    cardTextures[SUIT.HEARTS][7] = getTexture("8_of_hearts")
+    cardTextures[SUIT.HEARTS][8] = getTexture("9_of_hearts")
+    cardTextures[SUIT.HEARTS][9] = getTexture("10_of_hearts")
+    cardTextures[SUIT.HEARTS][10] = getTexture("jack_of_hearts2")
+    cardTextures[SUIT.HEARTS][11] = getTexture("queen_of_hearts2")
+    cardTextures[SUIT.HEARTS][12] = getTexture("king_of_hearts2")
 
-    cardTextures[SUITS.SPADES][0] = getTexture("ace_of_spades")
-    cardTextures[SUITS.SPADES][1] = getTexture("2_of_spades")
-    cardTextures[SUITS.SPADES][2] = getTexture("3_of_spades")
-    cardTextures[SUITS.SPADES][3] = getTexture("4_of_spades")
-    cardTextures[SUITS.SPADES][4] = getTexture("5_of_spades")
-    cardTextures[SUITS.SPADES][5] = getTexture("6_of_spades")
-    cardTextures[SUITS.SPADES][6] = getTexture("7_of_spades")
-    cardTextures[SUITS.SPADES][7] = getTexture("8_of_spades")
-    cardTextures[SUITS.SPADES][8] = getTexture("9_of_spades")
-    cardTextures[SUITS.SPADES][9] = getTexture("10_of_spades")
-    cardTextures[SUITS.SPADES][10] = getTexture("jack_of_spades2")
-    cardTextures[SUITS.SPADES][11] = getTexture("queen_of_spades2")
-    cardTextures[SUITS.SPADES][12] = getTexture("king_of_spades2")
+    cardTextures[SUIT.SPADES][0] = getTexture("ace_of_spades")
+    cardTextures[SUIT.SPADES][1] = getTexture("2_of_spades")
+    cardTextures[SUIT.SPADES][2] = getTexture("3_of_spades")
+    cardTextures[SUIT.SPADES][3] = getTexture("4_of_spades")
+    cardTextures[SUIT.SPADES][4] = getTexture("5_of_spades")
+    cardTextures[SUIT.SPADES][5] = getTexture("6_of_spades")
+    cardTextures[SUIT.SPADES][6] = getTexture("7_of_spades")
+    cardTextures[SUIT.SPADES][7] = getTexture("8_of_spades")
+    cardTextures[SUIT.SPADES][8] = getTexture("9_of_spades")
+    cardTextures[SUIT.SPADES][9] = getTexture("10_of_spades")
+    cardTextures[SUIT.SPADES][10] = getTexture("jack_of_spades2")
+    cardTextures[SUIT.SPADES][11] = getTexture("queen_of_spades2")
+    cardTextures[SUIT.SPADES][12] = getTexture("king_of_spades2")
 
 
 
     
-    //load music
-    loadMusic("breakout", "audio/breakout.mp3")
+    //load audio
 
-    loadChunk("bleep1", "audio/bleep.mp3")
-    loadChunk("bleep2", "audio/bleep.wav")
-    loadChunk("powerup", "audio/powerup.wav")
-    loadChunk("solid", "audio/solid.wav")
+    loadChunk("card_place_1", "audio/card_place_1.wav")
+    loadChunk("card_place_2", "audio/card_place_2.wav")
+    loadChunk("card_place_3", "audio/card_place_3.wav")
+
+    loadChunk("pingpong_1", "audio/pingpong_1.mp3")
+    
+    loadChunk("woosh", "audio/woosh.wav")
+
+    loadChunk("undo", "audio/undo.wav")
+    loadChunk("redo", "audio/redo.wav")
+
+    loadChunk("win", "audio/win.mp3")
+    loadChunk("cancel", "audio/cancel.wav")
+    loadChunk("cancel_reverse", "audio/cancel_reverse.mp3")
+
+    loadChunk("siren_whistle", "audio/siren_whistle.wav")
 
 }
 
@@ -307,7 +317,7 @@ loadTexture := proc(name, path: string){
         
     }else{
         // fmt.println("successfully created texture: name, path:", name, path)
-        texture_map[name] = generateTexture(width, height, nrComponents, data, gl.CLAMP_TO_EDGE)
+        texture_map[name] = generateTexture(width, height, nrComponents, data, gl.CLAMP_TO_BORDER)
     }
 
 }
@@ -341,10 +351,16 @@ generateTexture :: proc(width, height, nrComponents : i32, data : [^]u8, wrapmod
 
     gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
     
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapmode);//clamp to edge for transparent rgba textures prevent weird effect -> without it, the pixels at the top of the quad are interpolated between the top, and the bottom of the texture. if the top of the texture is transparent, and that's the desired color you want for the quad, you need to clamp_to_edge, otherwise you'll there will be non transparent pixels at the top of the texture.
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapmode);
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapmode)//clamp to edge for transparent rgba textures prevent weird effect -> without it, the pixels at the top of the quad are interpolated between the top, and the bottom of the texture. if the top of the texture is transparent, and that's the desired color you want for the quad, you need to clamp_to_edge, otherwise you'll there will be non transparent pixels at the top of the texture.
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapmode)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+
+    
+    //[^] is a multipointer, which is a c like pointer that has indexing, and is meant for working with c code 
+    // bcol := [?]f32{0, 0, 0, 1}
+    // borderColor : [^]f32 = raw_data(bcol[:]) 
+    // gl.TexParameterfv(gl.TEXTURE_2D, gl.TEXTURE_BORDER_COLOR, borderColor)
 
     ///!!actually have to generate the mip maps if you use gl.LINEAR_MIPMAP_LINEAR or gl.LINEAR_MIPMAP_NEAREST for 
     //the texture parameters, otherwise everything will be black (I guess everything that needs to use a mip map anyways)
@@ -396,7 +412,7 @@ loadMusic :: proc(name, path :string){
     music := mix.LoadMUS(cstr)
 
     if music == nil{
-        fmt.eprintfln("could not load music at path:", path)
+        fmt.eprintfln("could not load music at path:", path, ", make sure you have the right subfolder")
         return
     }
 
@@ -418,7 +434,7 @@ loadChunk :: proc(name, path :string){
     chunk := mix.LoadWAV(cstr)
 
     if chunk == nil{
-        fmt.eprintfln("could not load chunk at path:", path)
+        fmt.eprintfln("could not load chunk at path:", path, ", make sure you have the right subfolder")
         return
     }
 
@@ -440,7 +456,12 @@ toggleMute :: proc(){
     // breakout.obj : error LNK2019: unresolved external symbol Mix_GetMusicVolume referenced in function fmt.eprintf
     // (path)\breakout.exe : fatal error LNK1120: 1 unresolved externals
 
-    fmt.printfln("volume", mix.VolumeMusic(-1))
+    // fmt.printfln("volume", mix.VolumeMusic(-1))
     mix.VolumeMusic(mix.VolumeMusic(-1) > 0 ? 0 : 128)
+    mix.Volume(-1, mix.Volume(0, -1) > 0 ? 0 : 128 )
+    //!!!! there's no mater volume proc in odin for sdl mixer, but I found just by trying it that
+    //passing -1 as the channel SEEMS to control all channels (.Volume is for chunk channels, if you put anything
+    //other than -1 it will ONLY set that channel)
+
 
 }

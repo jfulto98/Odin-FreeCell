@@ -67,7 +67,7 @@ initGui :: proc(){
 
 
 
-drawRect :: proc(tid: u32, x, y, w, h : int, rot_deg : f32, color := glm.vec3(1.0), shader_name := "default"){
+drawRect :: proc(tid: u32, x, y, w, h : int, rot_deg : f32, color := glm.vec4(1.0), shader_name := "default"){
 
     gl.BindVertexArray(spriteVAO)
     //!!!remember to enable blend mode so alpha works
@@ -104,7 +104,7 @@ drawRect :: proc(tid: u32, x, y, w, h : int, rot_deg : f32, color := glm.vec3(1.
     setUMat4fv("proj", proj)
     
 
-    setUVec3("spriteColor", color)
+    setUVec4("spriteColor", color)
     
     gl.ActiveTexture(gl.TEXTURE0)
     gl.BindTexture(gl.TEXTURE_2D, tid)

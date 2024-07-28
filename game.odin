@@ -3,6 +3,7 @@ package freecell
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "core:math"
 import "core:math/rand"
 
 import gl "vendor:OpenGL"
@@ -19,7 +20,9 @@ import SDL "vendor:sdl2"
 
 spriteVAO: u32
 
-GameState :: enum{GAME_NEW, GAME_DEAL, GAME_PLAYING, GAME_WIN}
+GameState :: enum{GAME_NEW, GAME_DEAL, GAME_PLAYING, GAME_AUTOCOMPLETING, GAME_WIN}
+canAutocomplete := false
+displayMenu := false
 
 gameState : GameState
 
@@ -33,13 +36,13 @@ proj : glm.mat4
 NUM_CARDS_IN_DECK :: 52
 
 
-card_size := glm.ivec2{90, 131}
-//actual card pngs are 500 x 726 (250/363 ratio)
+SUIT :: enum {DIAMONDS, CLUBS, HEARTS, SPADES}
+Suit_Set :: bit_set[SUIT]
 
 Card :: struct{
     id : int,
     rank : int,
-    suit : int,
+    suit : SUIT,
 
     //visuals
     visStartPosX : int,
@@ -80,7 +83,7 @@ cardArrayTypeToPutdownProc := map[CARD_ARRAY_TYPE](proc(^[dynamic]^Card)->bool){
 cardArrayTypeToEmptyTexture := map[CARD_ARRAY_TYPE]string{
     .DEFAULT = "empty",
     .TABLEAU = "empty",
-    .FOUNDATION = "foundation",
+    .FOUNDATION = "foundation_2",
     .FREECELL = "freecell",
 }
 
@@ -88,6 +91,7 @@ cardArrayTypeToEmptyTexture := map[CARD_ARRAY_TYPE]string{
 handCardArray : ^[dynamic]^Card
 handCardArrayIndex : int 
 handCardOffsetX, handCardOffsetY : int
+// handCardSpacingY : int
 
 doingManualPutdown := false
 currentClosestDistanceManualPutdownCardArray : ^[dynamic]^Card
@@ -100,35 +104,62 @@ visualMoveTimeSeconds : f32 = 0.2
 fakeCard : Card
 //a fake card used to do the winning animations
 
-defaultCardSpacingY := int((card_size.y * 95) / 363)
+
+//SPACING/SIZES
+//
+
+topMarginY := 20
+middleMarginY := 20
+bottomMarginY := 10
+
+//card size is based on margins/window height, in order to enure that 20 cards can fit in 1
+//tableau col, which should be the max number of cards in a single col.
+
+actualCardRatio : f32 = 500.0 / 726.0
+cardTopRatio : f32 =  120.0 / 726.0
+//how much of the card should stick out on top if buried in a tableau col.
+//need the ratio because it will help determine the actual card size.
+
+cardSizeY := f32(WINDOW_HEIGHT - topMarginY - middleMarginY - bottomMarginY) / (2 + (cardTopRatio * 19))
+cardSizeX := cardSizeY * actualCardRatio
+
+cardSize := glm.ivec2{ i32(cardSizeX), i32(cardSizeY)}
+
+defaultCardSpacingY := int(f32(cardSize.y) * cardTopRatio)
 //for the current card textures, this will give you the correct
 //y spacing such that the number and suit symbol of each card will be
-//visible in a column/tableau
-
-tableauSpacingX := 35
-tableauOffsetX := (WINDOW_WIDTH/2) - ((len(columns)*(cast(int)card_size.x + tableauSpacingX) - tableauSpacingX)/2)
-tableauOffsetY := 180
+//visible in a column/tableau -> update -> made this a little smaller so you can make the
+//cards bigger
 
 foundationdsAndCellsSpacingX := 35
-foundationdsAndCellsOffestY := 20
 
-foundationsOffsetX := (WINDOW_WIDTH/4)*3 -  ((len(foundations)*(cast(int)card_size.x + foundationdsAndCellsSpacingX) - foundationdsAndCellsSpacingX)/2)
-freecellsOffsetX := (WINDOW_WIDTH/4) -  ((len(foundations)*(cast(int)card_size.x + foundationdsAndCellsSpacingX) - foundationdsAndCellsSpacingX)/2)
+foundationsOffsetX := (WINDOW_WIDTH/4)*3 -  ((len(foundations)*(cast(int)cardSize.x + foundationdsAndCellsSpacingX) - foundationdsAndCellsSpacingX)/2)
+freecellsOffsetX := (WINDOW_WIDTH/4) -  ((len(foundations)*(cast(int)cardSize.x + foundationdsAndCellsSpacingX) - foundationdsAndCellsSpacingX)/2)
+
+tableauSpacingX := 35
+tableauOffsetX := (WINDOW_WIDTH/2) - ((len(columns)*(cast(int)cardSize.x + tableauSpacingX) - tableauSpacingX)/2)
+tableauOffsetY := topMarginY + cast(int)cardSize.y + middleMarginY
+
+tableauMaxSizeY := WINDOW_HEIGHT - tableauOffsetY - bottomMarginY
+//this is the maximum vertical size the cards in a tableau col can take up. This is used in order to know when to
+//shrink the tableau card spacing (don't want to draw cards beyond the bottom of the screen)
+
+
 
 //QUICK MOVES
 /*
     I put in a ton of comments in the code detailing quick moves.
-    the main problem with doing something like this with IMGUI principles is that it's
-    not really designed for the simple thing, which would be to, upon double clicking,
+    The main problem with doing something like this with IMGUI principles is that don't seem to 
+    facilitate the simple way of doing quick moves, which would be to, upon double clicking,
     just loop through all the card arrays, check to see which card array can accept the double clicked card(s), if any,
     and then do/don't do the move immediately. 
 
     ->instead, the best thing I could come up with was to do the following:
 
-    1) if you double click on a card/subset of cards in an array, change state from .NOT_DOING to LOOKING, and store the card array that contains the cards that are to be moved (this is done by just using the hand, 
+    1) if you double click on a card/subset of cards in an array, change state from .NOT_DOING to .LOOKING, and store the card array that contains the cards that are to be moved (this is done by just using the hand, 
     but not releasing it until all the quickmove stuff is done, even if you mouseup/etc)
     
-    2) as you loop thought drawing the card arrays, if an array can accept the cards, then check it with the quick move compare function. If it's a better candidate for moving
+    2) as you loop through drawing the card arrays, if an array can accept the cards, then check it with the quick move compare function. If it's a better candidate for moving
     than the last card, set it as the currentBestQuickMoveCardArray (don't know the name for this idiom, but it's just a more complex 'if a > b { biggest = a }')
     
     3)in the next frame, when you call drawCardArrays for the array with the cards you double clicked, you will know you have checked all the card arrays. Then set the state to .DOING
@@ -166,6 +197,7 @@ doubleClickHandCardArrayIndex : int
 
 quickMoveStartingCardArray : ^[dynamic]^Card
 quickMoveStartingCardArrayType : CARD_ARRAY_TYPE
+quickMoveStartingCardArrayIndexIs0 : bool
 
 currentBestQuickMoveCardArray : ^[dynamic]^Card
 currentBestQuickMoveCardArrayType : CARD_ARRAY_TYPE
@@ -184,9 +216,12 @@ firstQuickMoveInCycle := false
 // debug_NoPutdownProcs := true
 debug_NoPutdownProcs := false
 
+// debug_NoPickupConditions : = true
+debug_NoPickupConditions : = false
+
 quickMoveCompare :: proc(card_array : ^[dynamic]^Card, type : CARD_ARRAY_TYPE)->bool{
-    //test-> no compare, just replace
-    // return true
+    //the parameters represent a card array to test against. If the input card array is a better candidate,
+    //returns true, false otherwise.
 
     if firstQuickMoveInCycle{
         
@@ -201,11 +236,16 @@ quickMoveCompare :: proc(card_array : ^[dynamic]^Card, type : CARD_ARRAY_TYPE)->
         } 
 
         //tableau
+        //added checks to block moving to an empty tableau col if you're quick moving all the cards in another tableau col.
+        //(moving a col to another col has no real gameplay effect. The idea behind quickmoving is to move to another spot
+        //that is functionally different. If you just want to reorganize, you can do it manually)
+        //(note that this will only skip over empty cols that are next to each other. As soon as you move back to a col that isn't empty in the same cycle,
+        //you will then move to another empty col if there is one later in the draw order. I think this is fine, just wanted to avoid
+        //having to double click a bunch to move over empty cells.
         if  type == .TABLEAU &&
-
             currentBestQuickMoveCardArrayType != .FOUNDATION && 
-
-            currentBestQuickMoveCardArrayType != .TABLEAU
+            currentBestQuickMoveCardArrayType != .TABLEAU &&
+            !(quickMoveStartingCardArrayType == .TABLEAU && len(card_array) == 0 && quickMoveStartingCardArrayIndexIs0)
         {
                 return true
         }
@@ -229,7 +269,7 @@ quickMoveCompare :: proc(card_array : ^[dynamic]^Card, type : CARD_ARRAY_TYPE)->
         //next valid array, since quickMoveCompare will be called in that draw order (and only for valid arrays)
         //-> STILL want to treat foundatiosn/ free cells collectively though
         if currentBestQuickMoveCardArray == nil {
-            return (type == .FOUNDATION && quickMoveStartingCardArrayType != .FOUNDATION) || (type == .FREECELL && quickMoveStartingCardArrayType != .FREECELL) || type == .TABLEAU 
+            return (type == .FOUNDATION && quickMoveStartingCardArrayType != .FOUNDATION) || (type == .FREECELL && quickMoveStartingCardArrayType != .FREECELL) || (type == .TABLEAU && !(quickMoveStartingCardArrayType == .TABLEAU && len(card_array) == 0 && quickMoveStartingCardArrayIndexIs0))
         }
     }
 
@@ -237,6 +277,8 @@ quickMoveCompare :: proc(card_array : ^[dynamic]^Card, type : CARD_ARRAY_TYPE)->
 }
 
 initGame :: proc(){
+
+    fmt.print("cardSize:", cardSize)
 
     initHistory()
 
@@ -259,6 +301,32 @@ initGame :: proc(){
     initDeck()
 }
 
+canUndo := true
+undoRepeating := false
+
+undoRepeatTimeStart : f32 = 0.4
+undoRepeatTimeInterval : f32 = 0.1 
+
+undoRepeatTimeStartCount : f32 = 0
+undoRepeatTimeIntervalCount : f32 = 0
+
+
+onUndo :: proc(){
+    canUndo = false
+    
+    if undoRepeating{
+        undoRepeatTimeIntervalCount = 0
+    }
+}
+
+//hacky way of preventing switching from undo to redo when repeating
+//(originally had it where eg if you were repeat undoing, pressing
+//shift while still repeating causes you to go into redo repeating immediately.
+//DON'T want this, because eg if you are redo repeating, and you lift the shift
+//up before the ctrl or z keys, you'll do an unintentional undo.)
+UndoRepeatType :: enum{NONE, UNDO, REDO}
+undoRepeatType : UndoRepeatType
+
 updateGame :: proc(dt: f32){
 
     //input
@@ -266,38 +334,39 @@ updateGame :: proc(dt: f32){
 
     keyboardState := SDL.GetKeyboardState(nil)
 
-    if keyboardState[SDL.SCANCODE_R] == 1 && !keysProcessed[SDL.SCANCODE_R]{
-        // fmt.println("r pressed")
+    if keyboardState[SDL.SCANCODE_N] == 1 && !keysProcessed[SDL.SCANCODE_N]{
+        // fmt.println("n pressed")
         gameState = .GAME_NEW
-        keysProcessed[SDL.SCANCODE_R] = true
+        keysProcessed[SDL.SCANCODE_N] = true
     }
-
-    if keyboardState[SDL.SCANCODE_W] == 1 && !keysProcessed[SDL.SCANCODE_W]{
-        // fmt.println("r pressed")
-        debugAutoWin()
-        keysProcessed[SDL.SCANCODE_W] = true
-    }
-
-
-
 
     
-    if  (keyboardState[SDL.SCANCODE_LCTRL] == 1 || keyboardState[SDL.SCANCODE_RCTRL] == 1) && keyboardState[SDL.SCANCODE_Z] == 1 && !keysProcessed[SDL.SCANCODE_Z]{
+    if keyboardState[SDL.SCANCODE_ESCAPE] == 1 && !keysProcessed[SDL.SCANCODE_ESCAPE]{
         
-        if keyboardState[SDL.SCANCODE_LSHIFT] == 1 || keyboardState[SDL.SCANCODE_RSHIFT] == 1{
-            fmt.println("ctrl + shift + z pressed, redoing!")
-            redo()
-
+        
+        displayMenu = !displayMenu
+        if displayMenu{
+            playChunk("cancel_reverse")
         }else{
-            fmt.println("ctrl + z pressed, undoing!")
-            undo()
+            playChunk("cancel")
         }
-
-
-        keysProcessed[SDL.SCANCODE_Z] = true
+        keysProcessed[SDL.SCANCODE_ESCAPE] = true
     }
 
     
+    // if keyboardState[SDL.SCANCODE_W] == 1 && !keysProcessed[SDL.SCANCODE_W]{
+    //     // fmt.println("w pressed")
+    //     debugAutoWin()
+    //     keysProcessed[SDL.SCANCODE_W] = true
+    // }
+    
+    if keyboardState[SDL.SCANCODE_M] == 1 && !keysProcessed[SDL.SCANCODE_M]{
+        fmt.println("m pressed")
+        toggleMute()
+        keysProcessed[SDL.SCANCODE_M] = true
+    }
+    
+  
 
 
     //GAME STATE based updates
@@ -309,10 +378,11 @@ updateGame :: proc(dt: f32){
         clearCards()
         resetHistory()
 
-        // shuffleDeck()
+        shuffleDeck()
         quickMoveState = .NOT_DOING
 
         gameState = .GAME_DEAL
+        canAutocomplete = false
         
         //dumb, but you have to reset the statics in the deal proc for 
         //each new game, otherwise they retain their values. So 2nd arg is
@@ -325,8 +395,18 @@ updateGame :: proc(dt: f32){
     }else if gameState == .GAME_DEAL{
 
 
-        if deal(dt, false, mouseDownEventThisFrameL) do gameState = .GAME_PLAYING
-        
+        if deal(dt, false, mouseDownEventThisFrameL){ 
+            gameState = .GAME_PLAYING
+
+            //in the odd chance you have an autocompletable deal, enable autocompleting
+            //!! note that deal returning true doesn't mean all the cards are done moving visually,
+            //so if you hit autocomplete button before they're done, the remaining cards will just move from (-cardsize.x, -cardsize.y)
+            //to the foundation. (tested this, getting an autocompletable off the bat will almost never happen anyways, but even so it looks fine, and more importantly it works functionally.)
+            //you'd otherwise have to make a checker for making sure all cards are not visual after dealing, wouldn't be too hard but I'm trying to
+            //wrap this up.
+            canAutocomplete = checkForAutoComplete()
+        }
+
         /*
         debugDealWin()
         gameState = .GAME_PLAYING
@@ -334,6 +414,141 @@ updateGame :: proc(dt: f32){
     }
 
     if gameState == .GAME_PLAYING{
+        //ONLY WANT TO PROCESS UNDOs while playing the game.
+
+        undoBeingHeld := (keyboardState[SDL.SCANCODE_LCTRL] == 1 || keyboardState[SDL.SCANCODE_RCTRL] == 1) && keyboardState[SDL.SCANCODE_Z] == 1
+
+        if !undoBeingHeld{
+            //z key up
+            canUndo = true
+            undoRepeating = false
+    
+            undoRepeatTimeStartCount = 0
+            undoRepeatTimeIntervalCount = 0
+        
+        }else{
+            //undo being held
+    
+            if !undoRepeating {
+                
+                if undoRepeatTimeStartCount < undoRepeatTimeStart{
+                    undoRepeatTimeStartCount += dt
+                }
+                
+                if  undoRepeatTimeStartCount >= undoRepeatTimeStart{
+                    undoRepeating = true
+                    undoRepeatType = .NONE
+                }
+            
+            }
+            
+            if undoRepeating{
+                //repeating
+                
+                if undoRepeatTimeIntervalCount < undoRepeatTimeInterval{
+                    undoRepeatTimeIntervalCount += dt
+                }
+                
+                if undoRepeatTimeIntervalCount >= undoRepeatTimeInterval{
+                    canUndo = true
+                    undoRepeatTimeIntervalCount = 0
+                }
+            }    
+    
+    
+    
+            if canUndo{
+                
+                undoBlock:{
+                    if keyboardState[SDL.SCANCODE_LSHIFT] == 1 || keyboardState[SDL.SCANCODE_RSHIFT] == 1{
+                        fmt.println("ctrl + shift + z pressed, redoing!")
+                        
+                        if undoRepeating{
+                            if undoRepeatType == .NONE{
+                                undoRepeatType = .REDO
+                            }
+                            
+                            if undoRepeatType != .REDO{
+                                break undoBlock
+                            }
+                        }
+    
+                        if redo(){
+    
+    
+                            pp_saturation_factor = 0.5
+                            pp_desaturate = 1
+                            
+                            playChunk("redo")
+    
+                            onUndo()
+                        }
+    
+                    }else{
+                        
+                        fmt.println("ctrl + z pressed, undoing!")
+                        if undoRepeating{
+                            if undoRepeatType == .NONE{
+                                undoRepeatType = .UNDO
+                            }
+                            
+                            if undoRepeatType != .UNDO{
+                                break undoBlock
+                            }
+                        }
+    
+                        if undo(){
+    
+    
+                            pp_saturation_factor = 0.5
+                            pp_desaturate = -1
+                            
+                            playChunk("undo")
+    
+                            onUndo()
+    
+                        }
+                    }
+                }
+            }
+    
+            //do this to be thorough, even though I'm operating on raw input
+            keysProcessed[SDL.SCANCODE_Z] = true
+        }
+    
+        
+
+
+        //AUTOCOMPLETING -> also only done while playing
+        //similar to dealing, the proc has statics, so on the first call (here),
+        //you need to reset them.
+
+        if keyboardState[SDL.SCANCODE_A] == 1 && !keysProcessed[SDL.SCANCODE_A]{
+            if canAutocomplete{
+                gameState = .GAME_AUTOCOMPLETING
+                autoComplete(dt, true)
+            }
+    
+            keysProcessed[SDL.SCANCODE_A] = true
+        }
+        
+    }
+
+    //!!!  reduce the saturation factor even if not .PLAYING to prevent having wrong staturation if you undo and then switch modes
+    //before saturation goes back to normal.
+    if pp_saturation_factor > 0 do pp_saturation_factor = max(0,  pp_saturation_factor - 0.4 * dt)
+
+
+
+    if gameState == .GAME_AUTOCOMPLETING{
+        fmt.println("GAME AUTOCOMPLETING!!!")
+
+        autoComplete(dt, false)
+        //this will 'turn off' when state changes to win, which is checked the same way as the regular game 
+    }
+
+    if gameState == .GAME_PLAYING || gameState == .GAME_AUTOCOMPLETING{
+        //checking for win conditions
         if checkForWin(){
             //all cards are now in foundations, but you have to wait for them to all be there visually.
             //-> when you enter win mode, all drawCardArray in renderGame are skipped so nothing but the fake
@@ -354,6 +569,8 @@ updateGame :: proc(dt: f32){
             if enterWinMode{
                 gameState = .GAME_WIN
                 doWinningAnimation(dt, true)
+
+                playChunk("win")
             }
 
             //same thing as deal proc, I like the statics but calling these twice
@@ -361,6 +578,7 @@ updateGame :: proc(dt: f32){
         }
 
     }
+
 
     if gameState == .GAME_WIN{
         doWinningAnimation(dt, false)
@@ -404,8 +622,6 @@ updateGame :: proc(dt: f32){
 
 
 
-
-
     //RENDERING game
     //
 
@@ -420,12 +636,13 @@ updateGame :: proc(dt: f32){
     //actually do the quick move, now that all the card arrays have been checked 
     if quickMoveState == .DOING{
         if currentBestQuickMoveCardArray != nil{
-            fmt.println("QUICK MOVING CARDS!!! to card array:", currentBestQuickMoveCardArray)
+            // fmt.println("QUICK MOVING CARDS!!! to card array:", currentBestQuickMoveCardArray)
 
             lastCardArrayQuickMovedToIndex = len(currentBestQuickMoveCardArray)
             //have to get this before actually moving
 
             moveCards(handCardArray, currentBestQuickMoveCardArray, handCardArrayIndex)
+            playChunk("woosh")
 
             lastCardArrayQuickMovedTo = currentBestQuickMoveCardArray
             // lastCardArrayQuickMovedToType = currentBestQuickMoveCardArrayType
@@ -444,6 +661,8 @@ updateGame :: proc(dt: f32){
         //distance to determine the closest array, so you have to set it to a giant number, OR do this, and
         //have a flag to tell you this is the first one, just set the best distance to it to start.
         moveCards(handCardArray, currentClosestDistanceManualPutdownCardArray, handCardArrayIndex)
+        playRandomCardPlaceSound()
+
     }
 
     doingManualPutdown = false
@@ -479,8 +698,8 @@ renderGame :: proc(){
         //foundations
         for i in 0..<len(foundations){
             
-            posX := foundationsOffsetX + (cast(int)card_size.x + foundationdsAndCellsSpacingX) * i
-            posY := foundationdsAndCellsOffestY
+            posX := foundationsOffsetX + (cast(int)cardSize.x + foundationdsAndCellsSpacingX) * i
+            posY := topMarginY
             
             drawCardArray(&foundations[i], posX, posY, 0, .FOUNDATION)
         }
@@ -488,16 +707,31 @@ renderGame :: proc(){
         //tableau (columns)
         for i in 0..<len(columns){
 
-            posX := tableauOffsetX + ((cast(int)card_size.x + tableauSpacingX) * i)
+            posX := tableauOffsetX + ((cast(int)cardSize.x + tableauSpacingX) * i)
             posY := tableauOffsetY
             
-            drawCardArray(&columns[i], posX, posY, defaultCardSpacingY, .TABLEAU)
+
+            squishedCardSpacing := int(f32(tableauMaxSizeY - cast(int)cardSize.y) / f32(max(len(&columns[i]) -1, 1)))
+            //!!!+1 to the len so you don't /0 when len is 0
+            //note: I think I mentioned this elsewhere, but the max cards in a col should be 20 
+            //(8 cards initially, with a king on top, + 12 building off the king is 8 + 12 =20)
+            //With the way I did this, the last few cards will go beyond the bottom of the screen,
+            //but the tops are all above, so everything is still functional. Could have it where the bottom
+            //of the cards don't extend beyond the bottom, but with this spacing, there is still enough spacing
+            //between cards in the stack to see what they are, it would be hard to tell what the buried cards
+            //were if they were any more squished)-> COULD just make window bigger on y axis, but then that would
+            //mess up my current aspect ratio/layout.
+            
+            thisCardSpacingY := min(defaultCardSpacingY, squishedCardSpacing)
+            
+            drawCardArray(&columns[i], posX, posY, thisCardSpacingY, .TABLEAU)
+            // drawCardArray(&columns[i], posX, posY, defaultCardSpacingY, .TABLEAU)
         }
 
         //free cells
         for i in 0..<len(freecells){
             // fmt.println("len(handCardArray) - handCardArrayIndex ", len(handCardArray) - handCardArrayIndex )
-            drawCardArray(&freecells[i], freecellsOffsetX + (cast(int)card_size.x + foundationdsAndCellsSpacingX) * i,  foundationdsAndCellsOffestY, 0, .FREECELL)
+            drawCardArray(&freecells[i], freecellsOffsetX + (cast(int)cardSize.x + foundationdsAndCellsSpacingX) * i,  topMarginY, 0, .FREECELL)
         }
         
 
@@ -514,8 +748,8 @@ renderGame :: proc(){
                 handCardArray[i].visStartPosY = hcy
                 
                 //turn the hand blue for testing
-                // drawRect(cardTextures[handCardArray[i].suit][handCardArray[i].rank], hcx, hcy, cast(int)card_size.x, cast(int)card_size.y, 0, glm.vec3{0.0,1.0,1.0})
-                drawRect(cardTextures[handCardArray[i].suit][handCardArray[i].rank], hcx, hcy, cast(int)card_size.x, cast(int)card_size.y, 0)
+                // drawRect(cardTextures[handCardArray[i].suit][handCardArray[i].rank], hcx, hcy, cast(int)cardSize.x, cast(int)cardSize.y, 0, glm.vec3{0.0,1.0,1.0})
+                drawRect(cardTextures[handCardArray[i].suit][handCardArray[i].rank], hcx, hcy, cast(int)cardSize.x, cast(int)cardSize.y, 0)
 
             }
         }        
@@ -536,15 +770,15 @@ renderGame :: proc(){
             visPosY := glm.lerp(cast(f32)visCard.visStartPosY, cast(f32)visCard.visTargetPosY, t)
 
 
-            drawRect(cardTextures[visCard.suit][visCard.rank], cast(int)visPosX, cast(int)visPosY, cast(int)card_size.x, cast(int)card_size.y, 0)
+            drawRect(cardTextures[visCard.suit][visCard.rank], cast(int)visPosX, cast(int)visPosY, cast(int)cardSize.x, cast(int)cardSize.y, 0)
 
         }
 
     }else{
         //this needs to be here (btw start/end pp) in order to get the non-cleared pp effect
 
-        // drawRect(cardTextures[fakeCard.suit][fakeCard.rank], cast(int)fakeCard.visTargetPosX, cast(int)fakeCard.visTargetPosY, cast(int)card_size.x, cast(int)card_size.y, 0)
-        drawRect(cardTextures[fakeCard.suit][fakeCard.rank], fakeCard.visTargetPosX, fakeCard.visTargetPosY, cast(int)card_size.x, cast(int)card_size.y, 0)
+        // drawRect(cardTextures[fakeCard.suit][fakeCard.rank], cast(int)fakeCard.visTargetPosX, cast(int)fakeCard.visTargetPosY, cast(int)cardSize.x, cast(int)cardSize.y, 0)
+        drawRect(cardTextures[fakeCard.suit][fakeCard.rank], fakeCard.visTargetPosX, fakeCard.visTargetPosY, cast(int)cardSize.x, cast(int)cardSize.y, 0)
         
     }
     
@@ -559,18 +793,86 @@ renderGame :: proc(){
     // renderText(fmt.tprintf("Quick move timer:%f", doubleClickTimerSeconds), 0,0, 1, glm.vec3{0.0, 0.0, 1.0})
     // renderText(fmt.tprintf("Hand card array index:%f", handCardArrayIndex), 0,0, 0.5, glm.vec3{0.0, 0.0, 0.0})
     // renderText(fmt.tprintf("last quick move card array index:%f", lastCardArrayQuickMovedToIndex), 0, 40, 0.5, glm.vec3{0.0, 0.0, 0.0})
+    // renderText(fmt.tprint("undoRepeating:", undoRepeating), 10, 10, 0.5, glm.vec3{1.0, 0.0, 0.0})
+    // renderText(fmt.tprint("undoRepeatTimeStartCount:", undoRepeatTimeStartCount), 10, 50, 0.5, glm.vec3{1.0, 0.0, 0.0})
+
+    // renderText(fmt.tprint("canAutoComplete:", canAutocomplete), 10, 10, 0.5, glm.vec3{0.0, 0.0, 1.0})
+    
+    if gameState == .GAME_PLAYING && canAutocomplete{
+        acText := "(A)utocomplete"
+        acTextScale : f32 = 0.5
+        cosFac := (glm.cos(f32(SDL.GetTicks())*3 / 1000.0) + 1) / 2
+        acTextColor := glm.vec3{1-cosFac, 1-cosFac, cosFac}
+        renderText(acText, (WINDOW_WIDTH - getStringTextRendererWidth(acText, acTextScale))/2, WINDOW_HEIGHT - 50, acTextScale, acTextColor)
+    }
 
         
     
     if gameState == .GAME_WIN{
-        renderText("YOU WIN!!!", WINDOW_WIDTH/2 - 150, WINDOW_HEIGHT/2 - 50, 1, glm.vec3((glm.cos(f32(SDL.GetTicks())*3 / 1000.0) + 1)/2))
+
+        //!!!remember, hue range is 0-360, while sat and value are 0-1 like you'd expect.
+        winTextColor := hsv_to_rgb(glm.vec3{ 360.0*f32(SDL.GetTicks() % 1000.0)/1000.0,1,0.7})
+
+        winText := "YOU WIN!!!"
+        winTextScale : f32 = 1
+        renderText(winText, (WINDOW_WIDTH - getStringTextRendererWidth(winText, winTextScale))/2 , WINDOW_HEIGHT/2 - 50, winTextScale, winTextColor, true)
+    
+        winSubText := "(N)ew Game, (Q)uit"
+        winSubTextScale : f32 = 0.5
+        renderText(winSubText, (WINDOW_WIDTH - getStringTextRendererWidth(winSubText, winSubTextScale))/2 , WINDOW_HEIGHT/2 , winSubTextScale, winTextColor, true)
     }
     
 
+    if displayMenu{
+        menuPanelWidth := 725
+        menuPanelHeight := 522
+
+        mpX := (WINDOW_WIDTH - menuPanelWidth)/2
+        mpY := (WINDOW_HEIGHT - menuPanelHeight)/2
+
+        drawRect(getTexture("menu_panel"), mpX, mpY, menuPanelWidth, menuPanelHeight, 0, glm.vec4{0.0, 0.0, 0.3, 0.7})
+
+        tY : f32 = cast(f32)mpY + 30
+
+
+        t1 := "Esc - Back"
+        t1s : f32 = 0.3
+        renderText(t1, (WINDOW_WIDTH - getStringTextRendererWidth(t1, t1s))/2 , tY , t1s, glm.vec3(1.0))
+        
+        tY += 50 
+
+        t3 := "FREECELL"
+        t3s : f32 = 1
+        renderText(t3, (WINDOW_WIDTH - getStringTextRendererWidth(t3, t3s))/2 , tY , t3s, glm.vec3(1.0), true)
+        
+        tY += 90
+
+
+        controlLines := [?]string{
+            "Controls:",
+            "N - New Game, Q - Quit",
+            "LMB - Click and drag cards (Double click a card to quick move)",
+            "CTRL+Z - Undo, CTRL+SHIFT+Z - Redo",
+            "A - Autocomplete (when applicable)",
+            "M - Mute/Unmute",
+            "",
+            "See README for more info/credits/sources",
+            "THANKS FOR PLAYING"
+
+        }
+        
+        cls : f32 = .35
+
+        for l in controlLines{
+            renderText(l, (WINDOW_WIDTH - getStringTextRendererWidth(l, cls))/2 , tY , cls, glm.vec3(1.0))
+            tY += 30
+        }
+
+
+    }
+
+
 }//renderGame
-
-
-
 
 
 drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: int, card_array_type: CARD_ARRAY_TYPE){
@@ -589,6 +891,9 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
 
     selectedCardIndex := -1
     selectedCardPosY := -1
+
+    extraPixels := card_array_type == .TABLEAU && cardSpacingY != defaultCardSpacingY? (tableauMaxSizeY - cast(int)cardSize.y) - (cardSpacingY * (len(card_array) -1)) : 0;  
+    currentCardPos := pos_y
 
     // if !(-1 <= endingIndexInclusive){
     //     panic(fmt.tprint("somethings wrong with drawCardArray: endingIndexInclusive, selectedCardIndex", endingIndexInclusive, selectedCardIndex))
@@ -623,21 +928,48 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
         }
 
         //draw card
-        cardPosY := pos_y + cardSpacingY * max(0,i)
+        if(i >0){
+            //currentCardPos is set to pos_y initially, so skip empty (-1) and first card (0) 
+
+            currentCardPos += cardSpacingY
+
+            if extraPixels > 0{
+                currentCardPos += 1
+                extraPixels -= 1
+            }
+        }
+        
+        cardPosY := currentCardPos
+        // cardPosY := pos_y + cardSpacingY * max(0,i)
+
+
+
 
         if card == nil || !getCardIsVisual(card^){
             //only draw/do collision checks/etc if card is non visual
 
+
             // fmt.println("drawing card")
             if card == nil{
-                drawRect(getTexture(cardArrayTypeToEmptyTexture[card_array_type]), pos_x, pos_y, cast(int)card_size.x, cast(int)card_size.y, 0)
+                drawRect(getTexture(cardArrayTypeToEmptyTexture[card_array_type]), pos_x, pos_y, cast(int)cardSize.x, cast(int)cardSize.y, 0)
             }else{
-                drawRect(cardTextures[card.suit][card.rank], pos_x, cardPosY,  cast(int)card_size.x, cast(int)card_size.y, 0)
+                drawRect(cardTextures[card.suit][card.rank], pos_x, cardPosY,  cast(int)cardSize.x, cast(int)cardSize.y, 0)
+                
+                //!!added setting vis start pos for cards every frame where they're not visual. Currently implementing automoving,
+                //and realized the only way the vis start pos for a card will get set is when it's in the hand, and you're moving the hand around.
+                //this wasn't an issue until this point, since before now you always have the cards in the hand before they move (even quickmoving uses the hand initially)
+                //but autocompleting does NOT move cards to the hand, so (when testing, since I just have canautocomplete set to true, no conditions), all the cards' vispositions
+                //were at the dealing origin, not where the cards were in their cols. So to make this work, and to prevent any issues in the future, just set the card's start position
+                //any frame, that way it's ready to go and will behave as expected. (remember, because of the imgui stuff, you can't just get a card's actual position, unless you save it here,
+                //where it's being determined)
+
+                card.visStartPosX = pos_x
+                card.visStartPosY = pos_y
             }
 
             //check for PICKUP
             //added gamestate check currently to prevent picking up while dealing.
-            if gameState == .GAME_PLAYING && quickMoveState == .NOT_DOING && card != nil && mouseDownEventThisFrameL && checkCollisionPoint(pos_x, cardPosY, cast(int)card_size.x, cast(int)card_size.y, int(mousePosX), int(mousePosY)){
+            if gameState == .GAME_PLAYING && quickMoveState == .NOT_DOING && card != nil && mouseDownEventThisFrameL && checkCollisionPoint(pos_x, cardPosY, cast(int)cardSize.x, cast(int)cardSize.y, int(mousePosX), int(mousePosY)){
                 //!!! added  quickMoveState == .NOT_DOING as a precaution: even if it's unlikely, want to make sure you can't pickup anything during a quick move
                 //(since a quickmove takes place over 2 frames)
                 
@@ -656,7 +988,7 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
                 
             
             hcx, hcy := getHandCardPosition(0)
-            overlapping := quickMoveState == .NOT_DOING && checkCollisionRect(pos_x, cardPosY, cast(int)card_size.x, cast(int)card_size.y, hcx, hcy, cast(int)card_size.x, cast(int)card_size.y)
+            overlapping := quickMoveState == .NOT_DOING && checkCollisionRect(pos_x, cardPosY, cast(int)cardSize.x, cast(int)cardSize.y, hcx, hcy, cast(int)cardSize.x, cast(int)cardSize.y)
             //!!!similar to the pickup check, want to ensure no putdowns during quickmoves, since they currently take place over
             //2 frames.
             
@@ -724,13 +1056,30 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
     // fmt.println("max cards, alt & desc :", getMaxMovableCards(), getIsAltAndDesc(card_array, selectedCardIndex))
     //!!!have to use card_array here for checks, NOT handCardArray, since you don't actually have cards in the hand yet
 
-    if selectedCardIndex != -1 && len(card_array) - selectedCardIndex <= getMaxMovableCards() && getIsAltAndDesc(card_array, selectedCardIndex){
+    //SELECTING/PICKING UP CARDS
+
+    if selectedCardIndex != -1 && ( debug_NoPickupConditions || (len(card_array) - selectedCardIndex <= getMaxMovableCards() && getIsAltAndDesc(card_array, selectedCardIndex)) ) {
 
         //pick up cards
         handCardArray = card_array
         handCardArrayIndex = selectedCardIndex 
         handCardOffsetX = pos_x - cast(int)mousePosX
         handCardOffsetY = selectedCardPosY - cast(int)mousePosY
+
+        playRandomCardPlaceSound()
+
+        // handCardSpacingY = cardSpacingY
+
+        //store the hand card spacing so that if you pickup multiple cards from a stack that's been squished vertically because it has too many cards,
+        //the cards have the same spacing in the hand. This makes picking up cards look more visually consistent, as opposed to using the default spacing.
+        //THE IDEAL THING would be to have the card spacing be visually interpolated, and have the hand have it's own spacing based on number of cards. 
+        //->right now, if you add too many cards to a col, they just get squished instantly)
+        //but then you'd have to worry about not clicking cards as they are being squished (maybe you still want them to be clickable since they're not
+        //really moving in the same way that cards moving from one col to another are 'moving)
+        //Could do it, but this whole squishing thing is already an edge case, the current behaviour works, and looks good enough
+        //->what you would want to do is have something like a card array struct, that has the dynamic card pointer array, and then
+        //also a timer/target squish amount, and then visually interpolate the squishing/unsquishing, kind of like the card struct/etc
+        //-> can maybe do this in a future project, for now this is enough I think. 
 
         //QUICK MOVE DOUBLE CLICKING
         //put the quickmove stuff down here, as opposed to in the click check above, since you only want to be able to quick move valid cards.
@@ -750,6 +1099,7 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
 
                 quickMoveStartingCardArray = card_array
                 quickMoveStartingCardArrayType = card_array_type
+                quickMoveStartingCardArrayIndexIs0 = selectedCardIndex == 0
 
                 doubleClickTimerSeconds = doubleClickTimerResetTimeSeconds;
                 //I don't have a "stop checking for double click timer" bool/flag, so to make sure you cancel doing any other potential quick moving stuff,
@@ -765,7 +1115,7 @@ drawCardArray :: proc(card_array : ^[dynamic]^Card, pos_x, pos_y, cardSpacingY: 
                 //save card_array. If you click the same card array with the same card index before the quick move timer is up,
                 //do a quick move.
                 // fmt.println("doubleClickTimerSeconds , doubleClickTimerResetTimeSeconds", doubleClickTimerSeconds, doubleClickTimerResetTimeSeconds)
-                fmt.println("quick move primed - timer set to 0")
+                // fmt.println("quick move primed - timer set to 0")
                 doubleClickHandCardArray = card_array
                 doubleClickHandCardArrayIndex = selectedCardIndex
                 doubleClickTimerSeconds = 0;
@@ -836,18 +1186,7 @@ putDownProcTableaus :: proc(card_array : ^[dynamic]^Card)->bool{
                     
     if len(card_array) != 0{
         currentRank := card_array[len(card_array)-1].rank
-        suitsAreAlternating := false
-        
-        if handCardArray[handCardArrayIndex].suit == cast(int)SUITS.CLUBS || handCardArray[handCardArrayIndex].suit == cast(int)SUITS.SPADES{
-            fmt.printfln("hand is black")
-            suitsAreAlternating = card_array[len(card_array)-1].suit == cast(int)SUITS.DIAMONDS || card_array[len(card_array)-1].suit == cast(int)SUITS.HEARTS 
-        }else{
-            fmt.printfln("hand is red")
-            
-            suitsAreAlternating = card_array[len(card_array)-1].suit == cast(int)SUITS.CLUBS || card_array[len(card_array)-1].suit == cast(int)SUITS.SPADES
-        }
-        
-        return suitsAreAlternating && handCardArray[handCardArrayIndex].rank == currentRank - 1 
+        return getCardSuitsAreAlternating(handCardArray[handCardArrayIndex], card_array[len(card_array)-1]) && handCardArray[handCardArrayIndex].rank == currentRank - 1 
     }else{
         //if moving to an empty tableau col, you halve the max number of cards you're allowed ot move (see comments in getMaxMovableCards proc) 
         if len(handCardArray) - handCardArrayIndex > getMaxMovableCards()/2 do return false
@@ -857,7 +1196,17 @@ putDownProcTableaus :: proc(card_array : ^[dynamic]^Card)->bool{
     return true
 }
 
+getCardSuitsAreAlternating :: proc(card1, card2 : ^Card) -> bool{
+   
+    if card1.suit == SUIT.CLUBS || card1.suit == SUIT.SPADES{
+        // fmt.printfln("card 1 is black")
+        return card2.suit == SUIT.DIAMONDS || card2.suit == SUIT.HEARTS 
+    }else{
+        // fmt.printfln("card 1 is red")
+        return card2.suit == SUIT.CLUBS || card2.suit == SUIT.SPADES
+    }
 
+}
 
 checkForWin ::proc()->bool{
     
@@ -868,6 +1217,20 @@ checkForWin ::proc()->bool{
     return true
 }
 
+
+checkForAutoComplete :: proc()->bool{
+    
+    for i in 0..<len(columns){
+        for j in 0..< len(columns[i]) -1{
+            if columns[i][j].rank < columns[i][j+1].rank{
+                return false
+            }
+        }
+    }
+
+    fmt.println("game is autocompletable!!!")
+    return true
+}
 
 
 getHandCardPosition :: proc(i:int) -> (x, y: int){
@@ -880,6 +1243,9 @@ getHandCardPosition :: proc(i:int) -> (x, y: int){
 
 
     return cast(int)mousePosX + handCardOffsetX, (cast(int)mousePosY + defaultCardSpacingY * (i)) + handCardOffsetY
+    // return cast(int)mousePosX + handCardOffsetX, (cast(int)mousePosY + handCardSpacingY * (i)) + handCardOffsetY
+
+
 }
 
 
@@ -887,8 +1253,6 @@ getHandCardPosition :: proc(i:int) -> (x, y: int){
 
 moveCards :: proc(from, to : ^[dynamic]^Card, fromStartingIndex:int){
     
-
-
     //FIRST, backup the existing card arrays. (for undo history)
     savePoint(from)
     savePoint(to)
@@ -904,11 +1268,17 @@ moveCards :: proc(from, to : ^[dynamic]^Card, fromStartingIndex:int){
     handCardArray = nil
     handCardArrayIndex = -1
 
+    //check for autocomplete after every move
+    canAutocomplete = checkForAutoComplete()
+
 }
+
+
 
 dropHand :: proc(){
     fmt.println("in dropping hand")
 
+    playRandomCardPlaceSound()
 
     for &card in handCardArray[handCardArrayIndex:]{
         card.visJustStartedMoveSetVisuals = true
@@ -968,10 +1338,10 @@ getIsAltAndDesc :: proc(card_array : ^[dynamic]^Card, starting_index : int)->boo
         //then check for alternating suits
         suitsAreAlternating := false
                     
-        if card_array[i].suit == cast(int)SUITS.CLUBS || card_array[i].suit == cast(int)SUITS.SPADES{
-            suitsAreAlternating = card_array[i+1].suit == cast(int)SUITS.DIAMONDS || card_array[i+1].suit == cast(int)SUITS.HEARTS 
+        if card_array[i].suit == SUIT.CLUBS || card_array[i].suit == SUIT.SPADES{
+            suitsAreAlternating = card_array[i+1].suit == SUIT.DIAMONDS || card_array[i+1].suit == SUIT.HEARTS 
         }else{
-            suitsAreAlternating = card_array[i+1].suit == cast(int)SUITS.CLUBS || card_array[i+1].suit == cast(int)SUITS.SPADES 
+            suitsAreAlternating = card_array[i+1].suit == SUIT.CLUBS || card_array[i+1].suit == SUIT.SPADES 
         }
 
         if !suitsAreAlternating do return false
@@ -984,7 +1354,7 @@ initDeck :: proc(){
     
     for i in 0..<len(deck){
         deck[i].id = i 
-        deck[i].suit = i%4
+        deck[i].suit = SUIT(i%4)
         deck[i].rank = (len(deck)-i -1)/4
     }
 
@@ -1036,20 +1406,35 @@ deal :: proc(dt : f32, resetStatics : bool, dealEverythingImmediately : bool) ->
 
     dt += leftoverDt
 
+    if dealEverythingImmediately{
+        //play one sound effect when dealing everything, as opposed to all of them (sounds bad when 30 card place sfx play at once)
+        playChunk("undo")
+    }
+
+
     for dt >= dealIntervalSeconds || dealEverythingImmediately {
         
         
         append(&columns[col], &deck[cardsDealt])
-        
+        if !dealEverythingImmediately{
+            // playRandomCardPlaceSound()
+            playChunk("card_place_1")
+            //sounds better while dealing when it's the same sound effect, as opposed to random.
+        }
+
         // fmt.println("dealing card:", &deck[cardsDealt])
 
-        columns[col][len(columns[col])-1].visStartPosX = int(-card_size.x)
-        columns[col][len(columns[col])-1].visStartPosY = int(-card_size.y)
+        columns[col][len(columns[col])-1].visStartPosX = int(-cardSize.x)
+        columns[col][len(columns[col])-1].visStartPosY = int(-cardSize.y)
         columns[col][len(columns[col])-1].visTimeSeconds = visualMoveTimeSeconds
 
         columns[col][len(columns[col])-1].visJustStartedMoveSetVisuals = true
 
         cardsDealt +=1
+
+        // if cardsDealt == 25 do return true
+        //test card squishing by putting a bunch of cards in one col.
+
         if cardsDealt == len(deck) do return true
         //!!!I thought of resetting the statics here, when you're done dealing, the issue though
         //is if you hit r in the middle of a deal, there's no way for the function to know,
@@ -1068,6 +1453,104 @@ deal :: proc(dt : f32, resetStatics : bool, dealEverythingImmediately : bool) ->
     return false
 }
 
+
+
+
+autoComplete :: proc(dt : f32, resetStatics : bool){
+    
+    dt:=dt
+
+    @(static) timerSeconds : f32 = 0.0
+    @(static) leftoverDt : f32 = 0.0
+    @(static) foundationIndex : int = 0
+
+    if resetStatics{
+        timerSeconds = 0.0
+        leftoverDt = 0.0
+        foundationIndex = 0
+    }
+
+    intervalSeconds : f32 = .05
+
+    dt += leftoverDt
+
+
+    for dt >= intervalSeconds  {
+
+        flen : = len(foundations[foundationIndex])
+
+        currentTopFoundationCard := flen == 0 ? nil : foundations[foundationIndex][flen-1]
+
+        rankToFind := currentTopFoundationCard == nil ? 0 : currentTopFoundationCard.rank + 1 
+        suitToFind : SUIT
+        
+        if currentTopFoundationCard == nil{
+            //if there's no card in a foundation, need to find an suit that doesn't already have a 
+            //foundation (since foundations don't have an assigned suit)
+            //Using bitset to avoid having to loop through all foundations and compare against each suit in suits.
+            
+            existingSuits : Suit_Set = {}
+            
+            for f in foundations{
+                if len(f) > 0{
+                    //this is how you set a bit in a bitset (using += {enum value} for an enum bitset -> {enum value I guess gets treated like it's own set, as + op is the union of two sets})
+                    existingSuits += {f[len(f)-1].suit}
+                }
+            }
+
+            for suit in SUIT{
+                if suit not_in existingSuits{
+                    suitToFind = suit
+                    break
+                }
+            }
+        
+        }else{
+            suitToFind = currentTopFoundationCard.suit
+        }
+
+
+        acBlock : {
+            for &fc in freecells{
+                for cardIndex in 0..<len(fc){
+                    if fc[cardIndex].suit == suitToFind && fc[cardIndex].rank == rankToFind{
+                        append(&foundations[foundationIndex], fc[cardIndex])
+                        //this has to be an ordered remove
+                        //ordered remove : shifts all elements over to fill in the removed item.
+                        //unordered: removes the item, then replaces the enpty spot with the last element (so you only touch 2 elements, it's O(1) (see docs))
+                        fc[cardIndex].visJustStartedMoveSetVisuals = true
+                        ordered_remove(&fc, cardIndex)
+                        playChunk("card_place_1")
+                    
+                        break acBlock
+                    }
+                }
+            }
+
+            for &col in columns{
+                for cardIndex in 0..<len(col){
+                    if col[cardIndex].suit == suitToFind && col[cardIndex].rank == rankToFind{
+                        append(&foundations[foundationIndex], col[cardIndex])
+                        col[cardIndex].visJustStartedMoveSetVisuals = true
+                        ordered_remove(&col, cardIndex)
+                        playChunk("card_place_1")
+                    
+                        break acBlock
+                    }
+                }
+            }
+
+        }
+
+        foundationIndex = foundationIndex + 1 >= len(foundations) ? 0 : foundationIndex + 1
+        dt -= intervalSeconds
+
+    }
+
+    leftoverDt = dt
+    
+}
+
 debugDealWin :: proc(){
     //deals all the cards in the foundations to test 'winning'
     
@@ -1079,8 +1562,8 @@ debugDealWin :: proc(){
         append(&foundations[f], &deck[i])
 
         foundations[f][len(foundations[f])-1].visJustStartedMoveSetVisuals = true
-        foundations[f][len(foundations[f])-1].visStartPosX = int(-card_size.x)
-        foundations[f][len(foundations[f])-1].visStartPosY = int(-card_size.y)
+        foundations[f][len(foundations[f])-1].visStartPosX = int(-cardSize.x)
+        foundations[f][len(foundations[f])-1].visStartPosY = int(-cardSize.y)
         foundations[f][len(foundations[f])-1].visTimeSeconds = visualMoveTimeSeconds
     }
 
@@ -1109,35 +1592,13 @@ deinitGame :: proc(){
     deinitHistory()
 }
 
-drawCardsTest :: proc(){
-
-         // //test drawing cards
-        /*
-        //actual card png size = 500x726
-
-        // for suit in 0..<len(cardTextures){
-        //     for rank in 0..<len(cardTextures[suit]){
-        //         // fmt.println("suit, rank:", suit, rank)
-        //         drawSprite(cardTextures[suit][rank], glm.vec2{f32(rank), f32(suit)} * card_size,card_size, 0, glm.vec3(1.0))
-        //     }
-        // }
-
-        // cardCount := 0
-        // for card in deck{
-        //     drawSprite(cardTextures[card.suit][card.rank], glm.vec2{f32(cardCount % 13), f32(cardCount % 4)} * card_size,card_size, 0, glm.vec3(1.0))
-        //     cardCount += 1
-        // }
-        */
-}
-
-
 
 doWinningAnimation :: proc(dt : f32, newWin : bool ){
     // fmt.println("in do Winning Animation!!!")
 
     @(static) testPosX := 0
 
-    drawRect(getTexture("uv_map"), testPosX, 100, 100, 100, 0, glm.vec3{1.0, 0.0, 0.0})
+    drawRect(getTexture("uv_map"), testPosX, 100, 100, 100, 0, glm.vec4{1.0, 0.0, 0.0, 1.0})
     // testPosX = int((glm.cos(dt)+1)/2) * WINDOW_WIDTH
     testPosX += 1
 
@@ -1181,10 +1642,12 @@ doWinningAnimation :: proc(dt : f32, newWin : bool ){
             sign : [3]f32 = {1, -1, -1}
             fakeVelocityX = rand.choice(sign[:]) * rand.float32_range(150.0, 1000.0)
             fakeVelocityY = 0
+
+            playRandomCardPlaceSound()
         }
 
 
-        fakeCardPositionInBounds := checkCollisionRect(fakeCard.visTargetPosX, fakeCard.visTargetPosY, cast(int)card_size.x, cast(int)card_size.y, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        fakeCardPositionInBounds := checkCollisionRect(fakeCard.visTargetPosX, fakeCard.visTargetPosY, cast(int)cardSize.x, cast(int)cardSize.y, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
         
         if fakeCardPositionInBounds{
             // fmt.println("fake card in bounds, moving")
@@ -1197,9 +1660,22 @@ doWinningAnimation :: proc(dt : f32, newWin : bool ){
 
             fakeCard.visTargetPosY += int(fakeVelocityY * dt) 
 
-            if fakeCard.visTargetPosY > WINDOW_HEIGHT - cast(int)card_size.y {
-                fakeCard.visTargetPosY = WINDOW_HEIGHT - cast(int)card_size.y
+            if fakeCard.visTargetPosY > WINDOW_HEIGHT - cast(int)cardSize.y {
+                fakeCard.visTargetPosY = WINDOW_HEIGHT - cast(int)cardSize.y
                 fakeVelocityY *= rand.float32_range(-.8,-.7)
+
+                playChunk("pingpong_1")
+                
+                fmt.println("fakevelocityY:", fakeVelocityY)
+
+                //!! < 75 is for whatever the current values are
+                if abs(fakeVelocityY) < 70{
+                    fakeVelocityY = -5000
+                    playChunk("siren_whistle")
+
+
+                }
+            
             }
 
         }else{
@@ -1216,7 +1692,105 @@ getCardIsVisual :: proc(card : Card)-> bool{
 }
 
 debugAutoWin ::proc (){
-    clearCards()
-    gameState = .GAME_PLAYING
-    debugDealWin()
+    // clearCards()
+    // debugDealWin()
+    
+    //keeping this for the actual game, now that autocompleting is implemented,
+    //it's a better way of doing this. NOTE !!! -> the old way should still
+    //set gamestate to autocomplete, otherwise the autocomplete popup will show up as the cards are
+    //all moving to the foundations (because there are no cards in the tableaus, and debugDealWin 
+    //sets the state to .PLAYING, so autocomplete checks are done)
+    gameState = .GAME_AUTOCOMPLETING
+
+}
+
+drawCardsTest :: proc(){
+
+    // //test drawing cards
+   /*
+   //actual card png size = 500x726
+
+   // for suit in 0..<len(cardTextures){
+   //     for rank in 0..<len(cardTextures[suit]){
+   //         // fmt.println("suit, rank:", suit, rank)
+   //         drawSprite(cardTextures[suit][rank], glm.vec2{f32(rank), f32(suit)} * cardSize,cardSize, 0, glm.vec3(1.0))
+   //     }
+   // }
+
+   // cardCount := 0
+   // for card in deck{
+   //     drawSprite(cardTextures[card.suit][card.rank], glm.vec2{f32(cardCount % 13), f32(cardCount % 4)} * cardSize,cardSize, 0, glm.vec3(1.0))
+   //     cardCount += 1
+   // }
+   */
+}
+
+playRandomCardPlaceSound :: proc(){
+
+    cardChunkSlice := []string{"card_place_1", "card_place_2", "card_place_3"}
+    playChunk(rand.choice(cardChunkSlice))
+    // playChunk("card_place_1")
+
+}
+
+
+hsv_to_rgb :: proc (hsv : glm.vec3)->glm.vec3{
+
+    //just copied this over from the post processing frag shader,
+    //This is one of the last things I'm adding, I just need to make the win text more
+    //visible (against the animating cards), and I don't want to bother setting up SDF outlines,
+    //so I'm just adding a hue shift effect.
+
+    h := hsv.x
+    s := hsv.y
+    v := hsv.z
+
+    if s == 0 {
+        //if saturation is 0, just return value for everything
+        //in the book, they do an additional check for h == undefined, if it is, they do the return, else they throw an error
+        //this seems unecessary, but either way I'm not doing it.
+        return glm.vec3(v)
+    
+    }else{
+        // // /60 and sextant -> The HSV model is represented by an inverted hexagonal pyramid ('hexicone')
+        // //the 6 points on the hexigon are red, yellow, green, cyan, blue, and magenta. so each sextant is the 6th of the cone
+        // //between two of these colors (360/6 = 60 degrees). Look at figure 8.7 in the book (pg 320 pdf / 302 actual)
+
+        h = glm.mod(h, 360.0)/60.0
+
+        sextant := glm.floor(h)
+
+        fract := h - sextant
+
+        p := v * (1 - s) 
+        q := v * (1 - (s*fract)) 
+        t := v * (1 - (s*(1-fract))) 
+       
+       
+        rgb := glm.vec3(0)            
+
+        if(sextant == 0){
+            rgb = glm.vec3{v, t, p}
+
+        }else if(sextant == 1){
+            rgb = glm.vec3{q, v, p}
+
+        }else if(sextant == 2){
+            rgb = glm.vec3{p, v, t}
+
+        }else if(sextant == 3){
+            rgb = glm.vec3{p, q, v}
+
+        }else if(sextant == 4){
+            rgb = glm.vec3{t, p, v}
+
+        }else if(sextant == 5){
+            rgb = glm.vec3{v, p, q}
+        
+        }
+
+        return rgb;
+    }
+
+
 }
