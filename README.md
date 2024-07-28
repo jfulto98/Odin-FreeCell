@@ -8,11 +8,11 @@ A FreeCell game written in Odin, based on a C++ version I made last year.
 Features:
 
 -Visual card position interpolation
--Double click to quick move
--Undo/Redo system
--Autocomplete
--Cascading cards winning animation
--Sound Effects
+*Double click to quick move
+*Undo/Redo system
+*Autocomplete
+*Cascading cards winning animation
++Sound Effects
 
 Sources:
 
