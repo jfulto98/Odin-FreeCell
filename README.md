@@ -27,14 +27,21 @@ https://filmcow.itch.io/filmcow-sfx
 PowerShot G10 - camera on/open by paultjuh1984 -- https://freesound.org/s/165689/ -- License: Attribution 3.0
 
 https://freesound.org/people/syseQ/sounds/267528/
+
 https://freesound.org/people/filmfan87/sounds/108395/
+
 https://freesound.org/people/applauseav/sounds/331610/
+
 https://freesound.org/people/Raclure/sounds/405548/
 
 Software used:
+
 Visual Studio Code
+
 Paint.net
+
 RAD Debugger
+
 cmder
 
 Other sources/book references/forum posts are in comments in relevant places in the source code.
