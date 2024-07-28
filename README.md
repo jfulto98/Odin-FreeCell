@@ -1,13 +1,19 @@
 A FreeCell game written in Odin, based on a C++ version I made last year. 
 
-Features:
+![Alt text](/textures/screen_shots/1.png?raw=true "Screen shot of new game")
+![Alt text](/textures/screen_shots/4.png?raw=true "Screen shot of controls popup")
+![Alt text](/textures/screen_shots/3.png?raw=true "Screen shot of the middle of a game")
+![Alt text](/textures/screen_shots/2.png?raw=true "Screen shot of winning animation")
 
-Visual card position interpolation
-Double click to quick move
-Undo/Redo system
-Autocomplete
-Cascading cards winning animation
-Sound Effects
+Features:
+<ul>
+  <li>Moving cards</li>
+  <li>Double click to quick move</li>
+  <li>Undo/Redo system</li>
+  <li>Autocomplete</li>
+  <li>Cascading cards winning animation</li>
+  <li>Sound Effects</li>
+</ul>
 
 Sources:
 
@@ -21,14 +27,18 @@ https://filmcow.itch.io/filmcow-sfx
 PowerShot G10 - camera on/open by paultjuh1984 -- https://freesound.org/s/165689/ -- License: Attribution 3.0
 
 https://freesound.org/people/syseQ/sounds/267528/
+
 https://freesound.org/people/filmfan87/sounds/108395/
+
 https://freesound.org/people/applauseav/sounds/331610/
+
 https://freesound.org/people/Raclure/sounds/405548/
 
 Software used:
-Visual Studio Code
-Paint.net
-RAD Debugger
+
+Visual Studio Code,
+Paint.net,
+RAD Debugger,
 cmder
 
 Other sources/book references/forum posts are in comments in relevant places in the source code.
