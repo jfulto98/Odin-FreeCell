@@ -36,12 +36,9 @@ https://freesound.org/people/Raclure/sounds/405548/
 
 Software used:
 
-Visual Studio Code
-
-Paint.net
-
-RAD Debugger
-
+Visual Studio Code,
+Paint.net,
+RAD Debugger,
 cmder
 
 Other sources/book references/forum posts are in comments in relevant places in the source code.
