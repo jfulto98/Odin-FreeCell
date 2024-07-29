@@ -1,9 +1,9 @@
 A FreeCell game written in Odin, based on a C++ version I made last year. 
 
-![Alt text](/textures/screen_shots/1.png?raw=true "Screen shot of new game")
-![Alt text](/textures/screen_shots/4.png?raw=true "Screen shot of controls popup")
-![Alt text](/textures/screen_shots/3.png?raw=true "Screen shot of the middle of a game")
-![Alt text](/textures/screen_shots/2.png?raw=true "Screen shot of winning animation")
+![Alt text](/textures/1.png?raw=true "Screen shot of new game")
+![Alt text](/textures/4.png?raw=true "Screen shot of controls popup")
+![Alt text](/textures/3.png?raw=true "Screen shot of the middle of a game")
+![Alt text](/textures/2.png?raw=true "Screen shot of winning animation")
 
 Features:
 <ul>
