@@ -566,7 +566,7 @@ updateGame :: proc(dt: f32){
 
             //assume you already have all 52 cards in the foundations, 13 each 
             for card in deck{
-                fmt.println("card:", card)
+                // fmt.println("card:", card)
                 if getCardIsVisual(card){
                     enterWinMode = false
                     break
