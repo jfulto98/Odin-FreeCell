@@ -77,7 +77,19 @@ main :: proc() {
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!! like mp3s, you need to include and additional .dll so you can 
 	//actually load .pngs with .Load -> libpng16-16.dll ->  this is in the vendor folder in the 
 	//odin install location
-	sdl_image.Init(sdl_image.INIT_PNG)
+	fmt.eprintln("about to init sdl image")
+
+	// sdl_image_init_result := sdl_image.Init(sdl_image.INIT_PNG)
+	sdl_image_init_result := sdl_image.Init(sdl_image.INIT_PNG )
+
+	if sdl_image_init_result != sdl_image.INIT_PNG{
+		fmt.eprintln("couldn't init sdl_image")
+		fmt.eprintln("sdl_image.GetError:", sdl_image.GetError())
+	}
+
+
+
+	// icon := sdl_image.Load("J:\\graphics\\odin\\free_cell\\textures\\icon.png");
 	icon := sdl_image.Load("textures/icon.png");
 	SDL.SetWindowIcon(window, icon);
 
